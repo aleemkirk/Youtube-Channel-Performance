@@ -24,6 +24,8 @@ $$log\left(View\ Count\right)=\beta_0+\beta_1log\left(Video\ Length\right)+\beta
 \beta_{7_i}log\left(Channel\ Age\right)\ast\left(Video\ Category\right)$$
 
 # Results
+## Model 1
+### OLS Performance
 <img width="400" alt="image" src="https://github.com/aleemkirk/Youtube-Channel-Performance/assets/24708127/5089f8d3-40a9-47fc-836b-b65bc337913b">
 
 
