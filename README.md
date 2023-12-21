@@ -4,3 +4,11 @@ Since its inception in 2005, YouTube has drastically altered the digital media l
 Beyond entertainment, YouTube serves as a hub for community building, learning, and personal expression. It has democratized content creation, allowing individuals worldwide to share their stories and talents, challenging the status quo in the entertainment industry. Despite facing challenges in content moderation, YouTube remains committed to ensuring a balance between freedom of expression and a safe, respectful environment. As the platform continues to grow and innovate, it is set to maintain its position as a foundational element of digital media and a significant influencer online.
 
 This report delves into YouTube's content strategy and user engagement. Utilizing various statistical methods to analyze data, the study aims to reveal how video characteristics, upload frequencies, and types of content impact viewer behavior and engagement. This understanding is vital for content creators and marketers, offering essential insights for optimizing content strategy on this dynamic platform. The study's importance extends beyond academic interest, providing practical applications to enhance digital media strategies in the ever-evolving world of YouTube.
+
+# Hypothesis 
+The primary problem addressed in this project revolves around optimizing content strategy and enhancing user engagement on YouTube, a platform with over 2.70 billion users. Despite its vast user base, content creators often face challenges in effectively engaging their audience and growing their channels. To address this, the project aims to test several hypotheses using data available through the YouTube API:
+* H1: Video Length and View Count: Whether there is a correlation between the length of videos and the number of views they receive.
+* H2: Upload Frequency and Engagement: Investigating if channels that upload more frequently experience higher overall engagement.
+* H3: Content-Type and Subscriber Growth: Assessing if certain types of content are more effective in driving subscriber growth.
+* H4: Channel Age and View Count: Analyzing if channel age influences video performance. 
+
