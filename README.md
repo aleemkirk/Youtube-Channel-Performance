@@ -10,5 +10,12 @@ The primary problem addressed in this project revolves around optimizing content
 * H1: Video Length and View Count: Whether there is a correlation between the length of videos and the number of views they receive.
 * H2: Upload Frequency and Engagement: Investigating if channels that upload more frequently experience higher overall engagement.
 * H3: Content-Type and Subscriber Growth: Assessing if certain types of content are more effective in driving subscriber growth.
-* H4: Channel Age and View Count: Analyzing if channel age influences video performance. 
+* H4: Channel Age and View Count: Analyzing if channel age influences video performance.
+
+# Models
+$$\left(View\ Count\right)=\beta_0+\beta_1\left(Video\ Length\right)+\beta_2\left(Subscriber\ Count\right)+\beta_3\left(Channel\ Age\right)+\beta_{4_i}\left(Video\ 
+Category\right)+\beta_{5_i}\left(Video\ Length\right)\ast\left(Video\ Category\right)+\beta_{6_i}\left(Subscriber\ Count\right)\ast\left(Video\ Category\right)+\ \beta_{7_i}\left(Channel\ 
+Age\right)\ast\left(Video\ Category\right)$$
+
+
 
