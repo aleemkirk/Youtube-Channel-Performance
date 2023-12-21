@@ -13,12 +13,15 @@ The primary problem addressed in this project revolves around optimizing content
 * H4: Channel Age and View Count: Analyzing if channel age influences video performance.
 
 # Models
-## Model 1
 
-## Model 2
+## Model 1
 $$\left(View\ Count\right)=\beta_0+\beta_1\left(Video\ Length\right)+\beta_2\left(Subscriber\ Count\right)+\beta_3\left(Channel\ Age\right)+\beta_{4_i}\left(Video\
 Category\right)+\beta_{5_i}\left(Video\ Length\right)\ast\left(Video\ Category\right)+\beta_{6_i}\left(Subscriber\ Count\right)\ast\left(Video\ Category\right)+\ \beta_{7_i}\left(Channel\ 
 Age\right)\ast\left(Video\ Category\right)$$
+
+## Model 2
+$$log\left(View\ Count\right)=\beta_0+\beta_1log\left(Video\ Length\right)+\beta_2log\left(Subscriber\ Count\right)+\beta_3log\left(Channel\ Age\right)+\beta_{4_i}\left(Video\ Category\right)+\beta_{5_i}log\left(Video\ Length\right)\ast\left(Video\ Category\right)+\beta_{6_i}log\left(Subscriber\ Count\right)\ast\left(Video\ Category\right)+\ \beta_{7_i}log\left(Channel\ Age\right)\ast\left(Video\ Category\right)![image](https://github.com/aleemkirk/Youtube-Channel-Performance/assets/24708127/8aa564c2-afa6-42da-baa1-4803c359e42b)
+$$
 
 
 
