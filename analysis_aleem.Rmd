@@ -1,0 +1,951 @@
+---
+title: "Analysis_Aleem"
+author: "Aleem Khan"
+date: "2023-11-15"
+output: html_document
+---
+
+```{r}
+library(openxlsx)
+library(ggplot2)
+library(caret)
+library(gridExtra)
+library(grid)
+library(MASS)
+
+#Set theme for ggplot plots
+theme_set(
+  theme_minimal(base_size = 14, base_family = "sans") +
+  theme(panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
+          axis.line = element_line(color = "black"),
+          axis.text = element_text(color = "black"),
+          axis.title = element_text(color = "black"))
+)
+
+```
+
+
+
+#Read Data
+```{r}
+channels <- read.xlsx("../Channels-Data.xlsx")
+videos <- read.xlsx("../Videos-Data.xlsx")
+View(channels)
+View(videos)
+```
+
+#Data Preperation
+```{r}
+
+#Data Preparation
+videos <- videos[videos$Video_Length > 0,] #remove videos with 0 length
+channels$Channel_Age <- as.integer(Sys.Date() - as.Date(channels$Channel_Start_Date, origin = "1899-12-30")) #calculate channel age
+
+
+
+#merging and scaling the data
+merged_data <- merge(videos, channels, by = "Channel_ID")
+merged_data$Scaled_Views <- scale(merged_data$View_Count)
+merged_data$Scaled_Length <- scale(merged_data$Video_Length)
+merged_data$Scaled_Subs <- scale(merged_data$Total_Subscribers)
+merged_data$Scaled_Age <- scale(merged_data$Channel_Age)
+
+#Get views per subscriber
+merged_data$View_Count_Per_Sub = merged_data$View_Count / merged_data$Total_Subscribers
+merged_data$Video_Length_Per_View_Count = merged_data$Video_Length / merged_data$View_Count
+
+merged_data$Scaled_View_Count_Per_Sub <- scale(merged_data$View_Count_Per_Sub)
+
+
+#Detecting and removing outliers
+detect_outliers <- function(data, column) {
+  Q1 <- quantile(data[[column]], 0.25)
+  Q3 <- quantile(data[[column]], 0.75)
+  IQR_value <- Q3 - Q1
+  lower_bound <- Q1 - 1.5 * IQR_value
+  upper_bound <- Q3 + 1.5 * IQR_value
+  # print(IQR_value)
+  # print(lower_bound)
+  # print(upper_bound)
+
+  #outliers <- data[data[[column]] < lower_bound | data[[column]] > upper_bound, ]
+  return(as.integer(upper_bound))
+}
+
+outliers_video_length <- detect_outliers(merged_data, "Video_Length")
+outliers_view_count <- detect_outliers(merged_data, "View_Count")
+outliers_total_subscribers <- detect_outliers(merged_data, "Total_Subscribers")
+cat(outliers_video_length, outliers_view_count, outliers_total_subscribers)
+
+
+filtered_video_data <- merged_data[which(merged_data$Video_Length < outliers_video_length &  merged_data$View_Count<outliers_view_count & merged_data$Total_Subscribers<outliers_total_subscribers),] #remove outliers
+
+
+#create test and train datasets
+set.seed(123)  # Set seed for reproducibility
+split_indices <- createDataPartition(filtered_video_data$idvideos, p = 0.8, list = FALSE)
+train_data <- filtered_video_data[split_indices, ]
+test_data <- filtered_video_data[-split_indices, ]
+
+dim(videos)
+dim(filtered_video_data)
+
+```
+
+#Data Plots
+##Data Scatter Plots
+
+##Category Scatter Plots
+```{r}
+
+plots = list()
+count <- 1
+for (i in unique(merged_data$Search_Query.x)){
+  
+  p <- ggplot(train_data[train_data$Search_Query.x == i,], aes(x = Video_Length, y = View_Count)) +
+  geom_point(alpha=0.25) + 
+  labs(
+    x = "Video Length",
+    y = "View Count ",
+    title = toupper(i)
+  )
+  plots[[count]] <- p
+  count <- count + 1
+}
+
+
+grid.arrange( grobs = plots, ncol = 4)
+
+
+```
+
+
+##Box Plots
+```{r}
+#Before removing outliers 
+plot_data <-merged_data
+b1 <- ggplot(plot_data, aes(x = c("Views"), y = View_Count)) +
+  geom_boxplot(fill = "grey", color = "black", outlier.color = "orange", alpha = 0.25) +
+  labs(title = "View Count", x = "Views", y = "View Count") 
+
+b2 <-ggplot(plot_data, aes(x = c("Length"), y = Video_Length)) +
+  geom_boxplot(fill = "grey", color = "black", outlier.color = "orange", alpha = 0.25) +
+  labs(title = "Video Length", x = "Length", y = "Video Length") 
+
+b3 <-ggplot(plot_data, aes(x = c("Subscribers"), y = Total_Subscribers)) +
+  geom_boxplot(fill = "grey", color = "black", outlier.color = "orange", alpha = 0.25) +
+  labs(title = "Subscribers", x = "Subscribers", y = "Subscribers") 
+
+b4 <-ggplot(plot_data, aes(x = c("Channel Age"), y = Channel_Age)) +
+  geom_boxplot(fill = "grey", color = "black", outlier.color = "orange", alpha = 0.25) +
+  labs(title = "Channel Age", x = "Channel Age", y = "Channel Age") 
+
+grid.arrange( b1, b2, b3, b4, ncol = 2, top = textGrob(label = "Before Cleaning", gp = gpar(fontsize = 16, fontface = "bold")))
+
+#After removing outliers
+plot_data <-train_data
+b1 <- ggplot(plot_data, aes(x = c("Views"), y = View_Count)) +
+  geom_boxplot(fill = "grey", color = "black", outlier.color = "white", alpha = 0.25) +
+  labs(title = "View Count", x = "Views", y = "View Count") 
+
+b2 <-ggplot(plot_data, aes(x = c("Length"), y = Video_Length)) +
+  geom_boxplot(fill = "grey", color = "black", outlier.color = "white", alpha = 0.25) +
+  labs(title = "Video Length", x = "Length", y = "Video Length") 
+
+b3 <-ggplot(plot_data, aes(x = c("Subscribers"), y = Total_Subscribers)) +
+  geom_boxplot(fill = "grey", color = "black", outlier.color = "white", alpha = 0.25) +
+  labs(title = "Subscribers", x = "Subscribers", y = "Subscribers") 
+
+b4 <-ggplot(plot_data, aes(x = c("Channel Age"), y = Channel_Age)) +
+  geom_boxplot(fill = "grey", color = "black", outlier.color = "white", alpha = 0.25) +
+  labs(title = "Channel Age", x = "Channel Age", y = "Channel Age") 
+
+grid.arrange( b1, b2, b3, b4, ncol = 2, top = textGrob(label = "After Cleaning", gp = gpar(fontsize = 16, fontface = "bold")))
+
+
+```
+
+
+##Scatter Plots
+```{r}
+plot_data <-merged_data
+
+p1 <- ggplot(plot_data, aes(x = Video_Length, y = View_Count, color = Search_Query.x)) +
+  geom_point( size = 1, alpha=0.25) + 
+  labs(
+    x = "Video Length (seconds)",
+    y = "View Count",
+    title = "View Counts vs Video Length" 
+  )+ theme(legend.position = "none", text = element_text(size = 10))
+
+p2 <- ggplot(plot_data, aes(x = Channel_Age, y = View_Count, color = Search_Query.x)) +
+  geom_point(size = 1, alpha=0.25) +
+  labs(
+    x = "Channel Age (Days)",
+    y = "View Count",
+    title = "View Counts vs Channel Age" 
+  ) + theme(legend.position = "none", text = element_text(size = 10))
+
+p3 <- ggplot(plot_data, aes(x = Channel_Age, y = Total_Subscribers, color = Search_Query.x)) +
+  geom_point(size = 1, alpha=0.25) +
+  labs(
+    x = "Channel Age (Days)",
+    y = "Subscribers",
+    title = "Subscribers vs Channel Age" + scale_y_log10() + scale_x_log10()
+  ) + theme(legend.position = "none", text = element_text(size = 10))
+
+p4 <- ggplot(plot_data, aes(x = Total_Subscribers, y = Video_Length, color = Search_Query.x)) +
+  geom_point(size = 1, alpha=0.25) +
+  labs(
+    x = "Subscribers",
+    y = "Video Length",
+    title = "Video Length vs Subscribers"
+  ) + theme(legend.position = "none", text = element_text(size = 10))
+
+
+p5 <- ggplot(plot_data, aes(x = Total_Subscribers, y = View_Count, color = Search_Query.x)) +
+    geom_point(size = 1, alpha=0.25) +
+    labs(
+      x = "Subscribers",
+      y = "View Count",
+      title = "View Count vs Subscribers"
+    ) + theme(legend.position = "none", text = element_text(size = 10))
+
+grid.arrange( p1, p2, p5, p3,  ncol = 2, top = textGrob(label = "Before Cleaning", gp = gpar(fontsize = 16, fontface = "bold")))
+
+
+
+plot_data <-train_data
+
+p1 <- ggplot(plot_data, aes(x = Video_Length, y = View_Count, color = Search_Query.x)) +
+  geom_point( size = 1, alpha=0.25) + 
+  labs(
+    x = "Video Length (seconds)",
+    y = "View Count",
+    title = "View Counts vs Video Length"
+  ) + theme(legend.position = "none", text = element_text(size = 10))
+
+p2 <- ggplot(plot_data, aes(x = Channel_Age, y = View_Count, color = Search_Query.x)) +
+  geom_point(size = 1, alpha=0.25) +
+  labs(
+    x = "Channel Age (Days)",
+    y = "View Count",
+    title = "View Counts vs Channel Age"
+  ) + theme(legend.position = "none", text = element_text(size = 10))
+
+p3 <- ggplot(plot_data, aes(x = Channel_Age, y = Total_Subscribers, color = Search_Query.x)) +
+  geom_point(size = 1, alpha=0.25) +
+  labs(
+    x = "Channel Age (Days)",
+    y = "Subscribers",
+    title = "Subscribers vs Channel Age"
+  ) + theme(legend.position = "none", text = element_text(size = 10))
+
+p4 <- ggplot(plot_data, aes(x = Total_Subscribers, y = Video_Length, color = Search_Query.x)) +
+  geom_point(size = 1, alpha=0.25) +
+  labs(
+    x = "Subscribers",
+    y = "Video Length",
+    title = "Video Length vs Subscribers"
+  ) + theme(legend.position = "none", text = element_text(size = 10))
+
+p5 <- ggplot(plot_data, aes(x = Total_Subscribers, y = View_Count, color = Search_Query.x)) +
+    geom_point(size = 1, alpha=0.25) +
+    labs(
+      x = "Subscribers",
+      y = "View Count",
+      title = "View Count vs Subscribers"
+    ) + theme(legend.position = "none", text = element_text(size = 10))
+
+grid.arrange( p1, p2, p5, p3,  ncol = 2, top = textGrob(label = "After Cleaning", gp = gpar(fontsize = 16, fontface = "bold")))
+
+
+plot_data <-train_data
+
+p1 <- ggplot(plot_data, aes(x = Video_Length, y = View_Count, color = Search_Query.x)) +
+  geom_point( size = 1, alpha=0.25) + 
+  labs(
+    x = "Video Length (seconds)",
+    y = "View Count",
+    title = "View Counts vs Video Length"
+  ) + theme(legend.position = "none", text = element_text(size = 10)) + scale_y_log10() + scale_x_log10()
+
+p2 <- ggplot(plot_data, aes(x = Channel_Age, y = View_Count, color = Search_Query.x)) +
+  geom_point(size = 1, alpha=0.25) +
+  labs(
+    x = "Channel Age (Days)",
+    y = "View Count",
+    title = "View Counts vs Channel Age"
+  ) + theme(legend.position = "none", text = element_text(size = 10))+ scale_y_log10() + scale_x_log10()
+
+p3 <- ggplot(plot_data, aes(x = Channel_Age, y = Total_Subscribers, color = Search_Query.x)) +
+  geom_point(size = 1, alpha=0.25) +
+  labs(
+    x = "Channel Age (Days)",
+    y = "Subscribers",
+    title = "Subscribers vs Channel Age"
+  ) + theme(legend.position = "none", text = element_text(size = 10))+ scale_y_log10() + scale_x_log10()
+
+p4 <- ggplot(plot_data, aes(x = Total_Subscribers, y = Video_Length, color = Search_Query.x)) +
+  geom_point(size = 1, alpha=0.25) +
+  labs(
+    x = "Subscribers",
+    y = "Video Length",
+    title = "Video Length vs Subscribers"
+  ) + theme(legend.position = "none", text = element_text(size = 10))+ scale_y_log10() + scale_x_log10()
+
+  p5 <- ggplot(plot_data, aes(x = Total_Subscribers, y = View_Count, color = Search_Query.x)) +
+    geom_point(size = 1, alpha=0.25) +
+    labs(
+      x = "Subscribers",
+      y = "View Count",
+      title = "View Count vs Subscribers"
+    ) + theme(legend.position = "none", text = element_text(size = 10))+ scale_y_log10() + scale_x_log10()
+
+grid.arrange( p1, p2, p5, p3,  ncol = 2, top = textGrob(label = "Log Transformed Graphs", gp = gpar(fontsize = 16, fontface = "bold")))
+
+```
+
+##Histograms
+```{r}
+#Before Cleaning
+h1 <- ggplot(merged_data, aes(x = Total_Subscribers)) +
+  geom_histogram(binwidth = 1000000, fill = "grey", color = "black", alpha = 0.7) +
+  labs( x = "Subscribers", y = "Frequency")
+
+h2 <- ggplot(merged_data, aes(x = Channel_Age)) +
+  geom_histogram(binwidth = 200, fill = "grey", color = "black", alpha = 0.7) + 
+  labs( x = "Channel Age (Days)", y = "Frequency")
+
+h3 <- ggplot(merged_data, aes(x = View_Count)) +
+  geom_histogram(binwidth = 3000000, fill = "grey", color = "black", alpha = 0.7) + 
+  labs( x = "Views", y = "Frequency")
+
+h4 <- ggplot(merged_data, aes(x = Video_Length)) +
+  geom_histogram(binwidth = 800000, fill = "grey", color = "black", alpha = 0.7) + 
+  labs( x = "Video Length (seconds)", y = "Frequency")
+
+grid.arrange( h3, h4, h1, h2, ncol = 2, top = textGrob(label = "Before Cleaning", gp = gpar(fontsize = 16, fontface = "bold")))
+
+#After Cleaning
+h1 <- ggplot(train_data, aes(x = Total_Subscribers)) +
+  geom_histogram(binwidth = 100000, fill = "grey", color = "black", alpha = 0.7) +
+  labs( x = "Subscribers", y = "Frequency")
+
+h2 <- ggplot(train_data, aes(x = Channel_Age)) +
+  geom_histogram(binwidth = 200, fill = "grey", color = "black", alpha = 0.7) + 
+  labs( x = "Channel Age (Days)", y = "Frequency")
+
+h3 <- ggplot(train_data, aes(x = View_Count)) +
+  geom_histogram(binwidth = 30000, fill = "grey", color = "black", alpha = 0.7) + 
+  labs( x = "Views", y = "Frequency")
+
+h4 <- ggplot(train_data, aes(x = Video_Length)) +
+  geom_histogram(binwidth = 80, fill = "grey", color = "black", alpha = 0.7) + 
+  labs( x = "Video Length (seconds)", y = "Frequency")
+
+grid.arrange( h3, h4, h1, h2, ncol = 2, top = textGrob(label = "After Cleaning", gp = gpar(fontsize = 16, fontface = "bold")))
+```
+##Pie Charts
+```{r}
+
+pie_chart <- table(merged_data$Search_Query.x)
+pie_chart_df <- data.frame(pie_chart)
+
+ggplot(pie_chart_df, aes(x = "", y = Freq, fill = Var1)) +
+  geom_bar(stat = "identity", width = 1, color = "white") +
+  coord_polar(theta = "y") +
+  labs(title = "Data Categories") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+
+
+#Regression Models
+##Regressions
+
+```{r}
+
+colnames(train_data)
+
+#lm_10 <- lm(View_Count ~ Video_Length + Total_Subscribers + Channel_Age + I(Search_Query.x), data = train_data)
+lm_11 <- lm(Scaled_Views ~ 1 + Scaled_Length + Scaled_Subs + Scaled_Age +  I(Search_Query.x), data= train_data)
+#summary(lm_10)
+summary(lm_11)
+```
+
+```{r}
+# lm_1 <- lm(View_Count ~ 1 + Video_Length, data = train_data)
+# lm_2 <- lm(View_Count ~ 1 + Total_Subscribers, data = train_data)
+# lm_3 <- lm(View_Count ~ 1 + Channel_Age, data = train_data)
+# lm_4 <- lm(View_Count ~ Video_Length + Total_Subscribers, data = train_data)
+# lm_5 <- lm(View_Count ~ Video_Length + Total_Subscribers + I(Search_Query.x), data = train_data)
+# lm_6 <- lm(View_Count ~ 1 + Video_Length + Total_Subscribers + Channel_Age, data = train_data)
+# 
+# lm_7 <- lm(View_Count ~ 1 + Video_Length + Total_Subscribers + Channel_Age + I(Search_Query.x), data = train_data)
+# lm_8 <- lm((View_Count) ~ 1 + (Video_Length) + (Total_Subscribers) + (Channel_Age) + I(Search_Query.x) + (Video_Length):I(Search_Query.x)+ (Total_Subscribers):I(Search_Query.x) + (Channel_Age):I(Search_Query.x), data = train_data)
+lm_9 <- lm(log(View_Count) ~ 1 + log(Video_Length) + log(Total_Subscribers) + log(Channel_Age) + I(Search_Query.x) + log(Video_Length):I(Search_Query.x)+ log(Total_Subscribers):I(Search_Query.x) + log(Channel_Age):I(Search_Query.x), data = train_data)
+
+#lm_10 <- lm((Comment_Count) ~ 1 + (Video_Length) + (Total_Subscribers) + (Channel_Age) + I(Search_Query.x) + (Video_Length):I(Search_Query.x)+ (Total_Subscribers):I(Search_Query.x) + (Channel_Age):I(Search_Query.x), data = train_data)
+# lm_11 <- lm(Comment_Count ~ 1 + View_Count + I(Search_Query.x) + View_Count:I(Search_Query.x), data = train_data)
+# lm_12 <- lm(View_Count_Per_Sub ~ 1 + Video_Length + Total_Subscribers + Channel_Age + I(Search_Query.x), data = train_data)
+# colnames(train_data)
+
+# summary(lm_1)
+# summary(lm_2)
+# summary(lm_3)
+# summary(lm_4)
+# summary(lm_5)
+# summary(lm_6)
+# summary(lm_7)
+# summary(lm_8)
+summary(lm_9)
+# summary(lm_10)
+# summary(lm_11)
+# summary(lm_12)
+
+
+# coeffs <- as.data.frame(summary(lm_6)$coefficients)
+# write.xlsx(coeffs, "summary_lm6.xlsx")
+# coeffs <- as.data.frame(summary(lm_7)$coefficients)
+# write.xlsx(coeffs, "summary_lm7.xlsx")
+# coeffs <- as.data.frame(summary(lm_8)$coefficients)
+# write.xlsx(coeffs, "summary_lm8.xlsx")
+# coeffs <- as.data.frame(summary(lm_9)$coefficients)
+# write.xlsx(coeffs, "summary_lm9.xlsx")
+# summary(lm_9)
+
+
+```
+
+##Ridge and Lasso Models
+```{r}
+df <- model.matrix( ~ Search_Query.x  +  Video_Length:Search_Query.x - 1 , data = train_data)
+dim(df)
+```
+
+
+```{r}
+library(glmnet)
+
+#create dummy variables
+regression_data <- cbind(train_data, model.matrix(~Search_Query.x - 1 , data = train_data))
+regression_data <- cbind(regression_data, model.matrix(~Video_Length:Search_Query.x - 1 , data = regression_data))
+regression_data <- cbind(regression_data,model.matrix(~Total_Subscribers:Search_Query.x - 1 , data = regression_data))
+regression_data <- cbind(regression_data,model.matrix(~Channel_Age:Search_Query.x - 1 , data = regression_data))
+
+
+
+
+categories <- c("Search_Query.xanimals", "Search_Query.xcomedy", "Search_Query.xcooking", "Search_Query.xeducation", "Search_Query.xdocumentaries", "Search_Query.xEntertainment", "Search_Query.xExercise", "Search_Query.xfashion", "Search_Query.xfashion", "Search_Query.xgames", "Search_Query.xhowto", "Search_Query.xmusic", "Search_Query.xnews", "Search_Query.xpets", "Search_Query.xpolitics", "Search_Query.xreligion", "Search_Query.xsports", "Search_Query.xTechnology", "Search_Query.xtravel", "Search_Query.xVehicles")
+
+
+regression1_cols = c("Video_Length", "Total_Subscribers", "Channel_Age", categories)
+regression2_cols = c(regression1_cols,  paste("Video_Length", categories, sep = ":"), paste("Total_Subscribers", categories, sep = ":"), paste("Channel_Age", categories, sep = ":"))
+
+
+#Variables to use in the Regression
+X1 <- data.matrix(regression_data[, regression1_cols])
+X2 <- data.matrix(regression_data[, regression2_cols])
+
+y <- regression_data$View_Count
+
+# Train a Ridge model using glmnet
+ridge_model1 <- cv.glmnet(X1, y, alpha = 0)  # Alpha = 0 for Ridge
+ridge_model2 <- cv.glmnet(X2, y, alpha = 0)  # Alpha = 0 for Ridge
+ridge_model3 <- cv.glmnet(log(X2), log(y), alpha = 0)  # Alpha = 0 for Ridge
+# Train a Lasso model using glmnet
+lasso_model1 <- cv.glmnet(X1, y, alpha = 1)  # Alpha = 1 for Lasso
+lasso_model2 <- cv.glmnet(X2, y, alpha = 1)  # Alpha = 1 for Lasso
+lasso_model3 <- cv.glmnet(log(X2), log(y), alpha = 1)  # Alpha = 0 for Ridge
+
+# Display the coefficients for Ridge
+# coef(ridge_model1)
+# coef(lasso_model1)
+# coef(ridge_model2)
+# coef(lasso_model2)
+#coef(ridge_model3)
+coef(lasso_model3,  s = "lambda.min")
+# summary(ridge_model)
+# summary(lasso_model)
+
+
+```
+
+##GLM
+```{r}
+# glm1 <- glm(log(View_Count) ~ 1 + log(Video_Length) + log(Total_Subscribers) + log(Channel_Age) + I(Search_Query.x) +  log(Video_Length):I(Search_Query.x)+ log(Total_Subscribers):I(Search_Query.x)+ log(Total_Subscribers):I(Search_Query.x), data= train_data, family = "poisson")
+
+glm2 <- glm((View_Count) ~ 1 + (Video_Length) + (Total_Subscribers) + (Channel_Age) + I(Search_Query.x) +  (Video_Length):I(Search_Query.x)+ (Total_Subscribers):I(Search_Query.x)+ (Channel_Age):I(Search_Query.x), data= train_data, family = "poisson")
+
+glm3 <- glm((View_Count) ~ 1 + (Video_Length) + (Total_Subscribers) + (Channel_Age) , data= train_data, family = "poisson")
+
+#summary(glm2)
+summary(glm3)
+coeffs <- as.data.frame(summary(glm3)$coefficients)
+write.xlsx(coeffs, "summary_glm3.xlsx")
+
+```
+
+
+#Model Performance
+##In sample Plots (LM)
+```{r}
+train_data$Predicted_Views_lm9  <- exp(predict(lm_9, newdata = train_data))
+
+plot_data <- data.frame(View_Count = (train_data$View_Count), Prediction = (train_data$Predicted_Views_lm9), Video_Length = (train_data$Video_Length), Subscribers = (train_data$Total_Subscribers), Channel_Age = (train_data$Channel_Age))
+plot_data$Residuals = (plot_data$View_Count) - (plot_data$Prediction)
+
+#Calculate R2
+SSR <- sum((plot_data$Prediction - mean(plot_data$View_Count))^2)
+SST <- sum((plot_data$View_Count - mean(plot_data$View_Count))^2)
+R_squared <- cor((plot_data$Prediction), (plot_data$View_Count))^2
+cat("R Squared: " , R_squared)
+
+
+#Residual Plot
+hist <- hist(plot_data$View_Count - plot_data$Prediction, breaks = 100, main = "Out of Sample Residuals", xlab = "Residuals")
+abline(v = -110000, col = "red", lty = 2)
+
+
+
+
+#Video Length Scatter Plot
+p1 <- ggplot(plot_data, aes(x = (Video_Length), y = (View_Count))) +
+  geom_point(color = "black", size = 1, alpha=0.25) + 
+  geom_point(data = plot_data , aes(x = (Video_Length), y = (Prediction)), color = "orange", size = 1, alpha=0.25) + 
+  labs(
+    x = "Video Length (seconds)",
+    y = "View Count"
+  ) #+ scale_y_log10() + scale_x_log10()
+
+
+#Subscribers Scatter Plot
+p2 <- ggplot(plot_data, aes(x = Subscribers, y = View_Count)) +
+  geom_point(color = "black", size = 1, alpha=0.25) + 
+  geom_point(data = plot_data , aes(x = Subscribers, y = Prediction), color = "orange", size = 1, alpha=0.25) + 
+  labs(
+    x = "Subscribers",
+    y = "View Count"
+  ) #+ scale_y_log10() + scale_x_log10()
+
+
+#Channel Age Scatter Plot
+p3 <- ggplot(plot_data, aes(x = Channel_Age, y = View_Count)) +
+  geom_point(color = "black", size = 1, alpha=0.25) + 
+  geom_point(data = plot_data , aes(x = Channel_Age, y = Prediction), color = "orange", size = 1, alpha=0.25) + 
+  labs(
+    x = "Channel Age (Days)",
+    y = "View Count"
+  ) #+ scale_y_log10() + scale_x_log10()
+
+#Histogram
+
+#Get mode
+hist_data <- hist(plot_data$Residuals, plot = FALSE, breaks=10000)
+
+# Find the bin with the highest frequency (mode)
+mode_bin <- which.max(plot_data$Residuals)
+
+
+# Get the range of the mode bin
+mode_range <- hist_data$breaks[c(mode_bin, mode_bin + 1)]
+#mode_range = 0
+
+#Residual Dist
+poisson_line <- stat_function(
+  fun = function(x) dpois(x, mean(plot_data$Residuals)),
+  color = "red",
+  size = 1
+)
+
+p4 <- ggplot(plot_data, aes(x = Residuals)) +
+  geom_histogram(binwidth = 50000, fill = "grey", color = "black", alpha = 0.7) +
+  geom_vline(xintercept = mean(plot_data$Residuals), color = "orange", linetype = "dashed") + 
+  labs( x = "Residuals", y = "Frequency") +
+  annotate("text", x = max(plot_data$Residuals), y = 600, label = paste("mean: ",as.integer(mean(plot_data$Residuals))), size = 4, color = "black",hjust = 1) +
+  annotate("text", x = max(plot_data$Residuals), y = 500, label = paste("mode: ",as.integer(mean(mode_range))), size = 4, color = "black", hjust = 1)
+
+grid.arrange( p1, p2, p3, p4, ncol = 2, bottom = textGrob(label = paste("R2:", round(R_squared, digits = 4)), gp = gpar(fontsize = 11, fontface = "bold")),                  top  = textGrob(label = "In Sample Performance", gp = gpar(fontsize = 11, fontface = "bold")))
+```
+
+
+##Out of Sample Plots (LM)
+```{r}
+
+test_data$Predicted_Views_lm9  <- exp(predict(lm_9, newdata = test_data))
+
+plot_data <- data.frame(View_Count = (test_data$View_Count), Prediction = (test_data$Predicted_Views_lm9), Video_Length = (test_data$Video_Length), Subscribers = (test_data$Total_Subscribers), Channel_Age = (test_data$Channel_Age))
+
+plot_data$Residuals = (plot_data$View_Count) - (plot_data$Prediction)
+
+#Calculate R2
+SSR <- sum((plot_data$Prediction - mean(plot_data$View_Count))^2)
+SST <- sum((plot_data$View_Count - mean(plot_data$View_Count))^2)
+R_squared <- cor((plot_data$Prediction), (plot_data$View_Count))^2
+cat("R Squared: " , R_squared)
+
+
+#Residual Plot
+hist <- hist(plot_data$View_Count - plot_data$Prediction, breaks = 100, main = "Out of Sample Residuals", xlab = "Residuals")
+abline(v = -110000, col = "red", lty = 2)
+
+
+
+
+#Video Length Scatter Plot
+p1 <- ggplot(plot_data, aes(x = Video_Length, y = View_Count)) +
+  geom_point(color = "black", size = 1, alpha=0.25) + 
+  geom_point(data = plot_data , aes(x = Video_Length, y = Prediction), color = "orange", size = 1, alpha=0.25) + 
+  labs(
+    x = "Video Length (seconds)",
+    y = "View Count"
+  ) #+ scale_y_log10() + scale_x_log10()
+
+
+#Subscribers Scatter Plot
+p2 <- ggplot(plot_data, aes(x = Subscribers, y = View_Count)) +
+  geom_point(color = "black", size = 1, alpha=0.25) + 
+  geom_point(data = plot_data , aes(x = Subscribers, y = Prediction), color = "orange", size = 1, alpha=0.25) + 
+  labs(
+    x = "Subscribers",
+    y = "View Count"
+  ) #+ scale_y_log10() + scale_x_log10()
+
+
+#Channel Age Scatter Plot
+p3 <- ggplot(plot_data, aes(x = Channel_Age, y = View_Count)) +
+  geom_point(color = "black", size = 1, alpha=0.25) + 
+  geom_point(data = plot_data , aes(x = Channel_Age, y = Prediction), color = "orange", size = 1, alpha=0.25) + 
+  labs(
+    x = "Channel Age (Days)",
+    y = "View Count"
+  ) #+ scale_y_log10() + scale_x_log10()
+
+#Histogram
+
+#Get mode
+hist_data <- hist(plot_data$Residuals, plot = FALSE, breaks=10000)
+
+# Find the bin with the highest frequency (mode)
+mode_bin <- which.max(plot_data$Residuals)
+
+# Get the range of the mode bin
+mode_range <- hist_data$breaks[c(mode_bin, mode_bin + 1)]
+#mode_range = 1
+
+p4 <- ggplot(plot_data, aes(x = Residuals)) +
+  geom_histogram(binwidth = 50000, fill = "grey", color = "black", alpha = 0.7) +
+  geom_vline(xintercept = mean(plot_data$Residuals), color = "orange", linetype = "dashed") + 
+  labs( x = "Residuals", y = "Frequency") +
+  annotate("text", x = max(plot_data$Residuals), y = 200, label = paste("mean: ",as.integer(mean(plot_data$Residuals))), size = 4, color = "black",hjust = 1) +
+  annotate("text", x = max(plot_data$Residuals), y = 170, label = paste("mode: ",as.integer(mean(mode_range))), size = 4, color = "black", hjust = 1)
+
+grid.arrange( p1, p2, p3, p4, ncol = 2, bottom = textGrob(label = paste("R2:", round(R_squared, digits = 4)), gp = gpar(fontsize = 11, fontface = "bold")),                  top  = textGrob(label = "Out of Sample Performance", gp = gpar(fontsize = 11, fontface = "bold")))
+```
+
+##In Sample Plots (Regualized)
+```{r}
+regression_test_data <- cbind(train_data, model.matrix(~Search_Query.x - 1 , data = train_data))
+regression_test_data <- cbind(regression_test_data, model.matrix(~Video_Length:Search_Query.x - 1 , data = regression_test_data))
+regression_test_data <- cbind(regression_test_data,model.matrix(~Total_Subscribers:Search_Query.x - 1 , data = regression_test_data))
+regression_test_data <- cbind(regression_test_data,model.matrix(~Channel_Age:Search_Query.x - 1 , data = regression_test_data))
+
+train_data$Predicted_Views_Lasso3 <- (predict(lasso_model3, s = "lambda.min", newx = as.matrix(regression_test_data[ ,regression2_cols])))
+
+plot_data <- data.frame(View_Count = (train_data$View_Count), Prediction = (train_data$Predicted_Views_Lasso3), Video_Length = (train_data$Video_Length), Subscribers = (train_data$Total_Subscribers), Channel_Age = (train_data$Channel_Age))
+
+
+plot_data$Prediction = plot_data$lambda.min
+
+plot_data$Residuals = (plot_data$View_Count) - (plot_data$Prediction)
+
+#Calculate R2
+SSR <- sum((plot_data$Prediction - mean(plot_data$View_Count))^2)
+SST <- sum((plot_data$View_Count - mean(plot_data$View_Count))^2)
+R_squared <- cor((plot_data$Prediction), (plot_data$View_Count))^2
+cat("R Squared: " , R_squared)
+
+#Video Length Scatter Plot
+p1 <- ggplot(plot_data, aes(x = (Video_Length), y = (View_Count))) +
+  geom_point(color = "black", size = 1, alpha=0.25) + 
+  geom_point(data = plot_data , aes(x = (Video_Length), y = (Prediction)), color = "orange", size = 1, alpha=0.25) + 
+  labs(
+    x = "Video Length (seconds)",
+    y = "View Count"
+  ) #+ scale_y_log10() + scale_x_log10()
+
+
+#Subscribers Scatter Plot
+p2 <- ggplot(plot_data, aes(x = Subscribers, y = View_Count)) +
+  geom_point(color = "black", size = 1, alpha=0.25) + 
+  geom_point(data = plot_data , aes(x = Subscribers, y = Prediction), color = "orange", size = 1, alpha=0.25) + 
+  labs(
+    x = "Subscribers",
+    y = "View Count"
+  ) #+ scale_y_log10() + scale_x_log10()
+
+
+#Channel Age Scatter Plot
+p3 <- ggplot(plot_data, aes(x = Channel_Age, y = View_Count)) +
+  geom_point(color = "black", size = 1, alpha=0.25) + 
+  geom_point(data = plot_data , aes(x = Channel_Age, y = Prediction), color = "orange", size = 1, alpha=0.25) + 
+  labs(
+    x = "Channel Age (Days)",
+    y = "View Count"
+  ) #+ scale_y_log10() + scale_x_log10()
+
+#Histogram
+
+#Get mode
+hist_data <- hist(plot_data$Residuals, plot = FALSE, breaks=10000)
+
+# Find the bin with the highest frequency (mode)
+mode_bin <- which.max(plot_data$Residuals)
+
+# Get the range of the mode bin
+mode_range <- hist_data$breaks[c(mode_bin, mode_bin + 1)]
+
+#mode_range = -1
+
+p4 <- ggplot(plot_data, aes(x = Residuals)) +
+  geom_histogram(binwidth = 50000, fill = "grey", color = "black", alpha = 0.7) +
+  geom_vline(xintercept = mean(plot_data$Residuals), color = "orange", linetype = "dashed") + 
+  labs( x = "Residuals", y = "Frequency") + 
+  annotate("text", x = max(plot_data$Residuals), y = 600, label = paste("mean: ",as.integer(mean(plot_data$Residuals))), size = 4, color = "black",hjust = 1) +
+  annotate("text", x = max(plot_data$Residuals), y = 500, label = paste("mode: ",as.integer(mean(mode_range))), size = 4, color = "black", hjust = 1)
+
+grid.arrange( p1, p2, p3, p4, ncol = 2, bottom = textGrob(label = paste("R2:", round(R_squared, digits = 4)), gp = gpar(fontsize = 11, fontface = "bold")),                  top  = textGrob(label = "In Sample Performance", gp = gpar(fontsize = 11, fontface = "bold")))
+
+```
+##Out of Sample Plots (Regulaized)
+```{r}
+regression_test_data <- cbind(test_data, model.matrix(~Search_Query.x - 1 , data = test_data))
+regression_test_data <- cbind(regression_test_data, model.matrix(~Video_Length:Search_Query.x - 1 , data = regression_test_data))
+regression_test_data <- cbind(regression_test_data,model.matrix(~Total_Subscribers:Search_Query.x - 1 , data = regression_test_data))
+regression_test_data <- cbind(regression_test_data,model.matrix(~Channel_Age:Search_Query.x - 1 , data = regression_test_data))
+
+test_data$Predicted_Views_Lasso3 <- (predict(lasso_model3, s = "lambda.min", newx = as.matrix(regression_test_data[ ,regression2_cols])))
+
+plot_data <- data.frame(View_Count = (test_data$View_Count), Prediction = (test_data$Predicted_Views_Lasso3), Video_Length = (test_data$Video_Length), Subscribers = (test_data$Total_Subscribers), Channel_Age = (test_data$Channel_Age))
+
+
+plot_data$Prediction = plot_data$lambda.min
+
+plot_data$Residuals = (plot_data$View_Count) - (plot_data$Prediction)
+
+#Calculate R2
+SSR <- sum((plot_data$Prediction - mean(plot_data$View_Count))^2)
+SST <- sum((plot_data$View_Count - mean(plot_data$View_Count))^2)
+R_squared <- cor((plot_data$Prediction), (plot_data$View_Count))^2
+cat("R Squared: " , R_squared)
+
+
+#Residual Plot
+hist <- hist(plot_data$View_Count - plot_data$Prediction, breaks = 100, main = "Out of Sample Residuals", xlab = "Residuals")
+abline(v = -110000, col = "red", lty = 2)
+
+
+
+
+#Video Length Scatter Plot
+p1 <- ggplot(plot_data, aes(x = Video_Length, y = View_Count)) +
+  geom_point(color = "black", size = 1, alpha=0.25) + 
+  geom_point(data = plot_data , aes(x = Video_Length, y = Prediction), color = "orange", size = 1, alpha=0.25) + 
+  labs(
+    x = "Video Length (seconds)",
+    y = "View Count"
+  ) #+ scale_y_log10() + scale_x_log10()
+
+
+#Subscribers Scatter Plot
+p2 <- ggplot(plot_data, aes(x = Subscribers, y = View_Count)) +
+  geom_point(color = "black", size = 1, alpha=0.25) + 
+  geom_point(data = plot_data , aes(x = Subscribers, y = Prediction), color = "orange", size = 1, alpha=0.25) + 
+  labs(
+    x = "Subscribers",
+    y = "View Count"
+  ) #+ scale_y_log10() + scale_x_log10()
+
+
+#Channel Age Scatter Plot
+p3 <- ggplot(plot_data, aes(x = Channel_Age, y = View_Count)) +
+  geom_point(color = "black", size = 1, alpha=0.25) + 
+  geom_point(data = plot_data , aes(x = Channel_Age, y = Prediction), color = "orange", size = 1, alpha=0.25) + 
+  labs(
+    x = "Channel Age (Days)",
+    y = "View Count"
+  ) #+ scale_y_log10() + scale_x_log10()
+
+#Histogram
+
+#Get mode
+hist_data <- hist(plot_data$Residuals, plot = FALSE, breaks=10000)
+
+# Find the bin with the highest frequency (mode)
+mode_bin <- which.max(plot_data$Residuals)
+
+# Get the range of the mode bin
+mode_range <- hist_data$breaks[c(mode_bin, mode_bin + 1)]
+#mode_range = -1.25
+
+p4 <- ggplot(plot_data, aes(x = Residuals)) +
+  geom_histogram(binwidth = 50000, fill = "grey", color = "black", alpha = 0.7) +
+  geom_vline(xintercept = mean(plot_data$Residuals), color = "orange", linetype = "dashed") + 
+  labs( x = "Residuals", y = "Frequency") +
+  annotate("text", x = max(plot_data$Residuals), y = 200, label = paste("mean: ",as.integer(mean(plot_data$Residuals))), size = 4, color = "black",hjust = 1) +
+  annotate("text", x = max(plot_data$Residuals), y = 180, label = paste("mode: ",as.integer(mean(mode_range))), size = 4, color = "black", hjust = 1)
+
+grid.arrange( p1, p2, p3, p4, ncol = 2, bottom = textGrob(label = paste("R2:", round(R_squared, digits = 4)), gp = gpar(fontsize = 11, fontface = "bold")),                  top  = textGrob(label = "Out of Sample Performance", gp = gpar(fontsize = 11, fontface = "bold")))
+```
+
+##In Sample Plots (GLM)
+```{r}
+train_data$Predicted_Views_glm2 <- (predict(glm2, newdata = train_data, type = "response"))
+
+plot_data <- data.frame(View_Count = (train_data$View_Count), Prediction = (train_data$Predicted_Views_glm2), Video_Length = (train_data$Video_Length), Subscribers = (train_data$Total_Subscribers), Channel_Age = (train_data$Channel_Age))
+plot_data$Residuals = (plot_data$View_Count) - (plot_data$Prediction)
+
+#Calculate R2
+SSR <- sum((plot_data$Prediction - mean(plot_data$View_Count))^2)
+SST <- sum((plot_data$View_Count - mean(plot_data$View_Count))^2)
+R_squared <- cor((plot_data$Prediction), (plot_data$View_Count))^2
+cat("R Squared: " , R_squared)
+
+
+#Residual Plot
+hist <- hist(plot_data$View_Count - plot_data$Prediction, breaks = 100, main = "Out of Sample Residuals", xlab = "Residuals")
+abline(v = -110000, col = "red", lty = 2)
+
+
+
+
+#Video Length Scatter Plot
+p1 <- ggplot(plot_data, aes(x = (Video_Length), y = (View_Count))) +
+  geom_point(color = "black", size = 1, alpha=0.25) + 
+  geom_point(data = plot_data , aes(x = (Video_Length), y = (Prediction)), color = "orange", size = 1, alpha=0.25) + 
+  labs(
+    x = "Video Length (seconds)",
+    y = "View Count"
+  ) #+ scale_y_log10() + scale_x_log10()
+
+
+#Subscribers Scatter Plot
+p2 <- ggplot(plot_data, aes(x = Subscribers, y = View_Count)) +
+  geom_point(color = "black", size = 1, alpha=0.25) + 
+  geom_point(data = plot_data , aes(x = Subscribers, y = Prediction), color = "orange", size = 1, alpha=0.25) + 
+  labs(
+    x = "Subscribers",
+    y = "View Count"
+  ) #+ scale_y_log10() + scale_x_log10()
+
+
+#Channel Age Scatter Plot
+p3 <- ggplot(plot_data, aes(x = Channel_Age, y = View_Count)) +
+  geom_point(color = "black", size = 1, alpha=0.25) + 
+  geom_point(data = plot_data , aes(x = Channel_Age, y = Prediction), color = "orange", size = 1, alpha=0.25) + 
+  labs(
+    x = "Channel Age (Days)",
+    y = "View Count"
+  ) #+ scale_y_log10() + scale_x_log10()
+
+#Histogram
+
+#Get mode
+hist_data <- hist(plot_data$Residuals, plot = FALSE, breaks=10000)
+
+# Find the bin with the highest frequency (mode)
+mode_bin <- which.max(plot_data$Residuals)
+
+
+# Get the range of the mode bin
+mode_range <- hist_data$breaks[c(mode_bin, mode_bin + 1)]
+#mode_range = 1
+
+p4 <- ggplot(plot_data, aes(x = Residuals)) +
+  geom_histogram(binwidth = 100000, fill = "grey", color = "black", alpha = 0.7) +
+  geom_vline(xintercept = mean(plot_data$Residuals), color = "orange", linetype = "dashed") + 
+  labs( x = "Residuals", y = "Frequency") +
+  annotate("text", x = max(plot_data$Residuals), y = 1000, label = paste("mean: ",as.integer(mean(plot_data$Residuals))), size = 4, color = "black",hjust = 1) +
+  annotate("text", x = max(plot_data$Residuals), y = 800, label = paste("mode: ",as.integer(mean(mode_range))), size = 4, color = "black", hjust = 1)
+
+grid.arrange( p1, p2, p3, p4, ncol = 2, bottom = textGrob(label = paste("R2:", round(R_squared, digits = 4)), gp = gpar(fontsize = 11, fontface = "bold")),                  top  = textGrob(label = "In Sample Performance", gp = gpar(fontsize = 11, fontface = "bold")))
+```
+
+##Out of Sample Plots (GLM)
+```{r}
+test_data$Predicted_Views_glm2 <- (predict(glm2, newdata = test_data, type = "response"))
+
+plot_data <- data.frame(View_Count = (test_data$View_Count), Prediction = (test_data$Predicted_Views_glm2), Video_Length = (test_data$Video_Length), Subscribers = (test_data$Total_Subscribers), Channel_Age = (test_data$Channel_Age))
+plot_data$Residuals = (plot_data$View_Count) - (plot_data$Prediction)
+
+#Calculate R2
+SSR <- sum((plot_data$Prediction - mean(plot_data$View_Count))^2)
+SST <- sum((plot_data$View_Count - mean(plot_data$View_Count))^2)
+R_squared <- cor((plot_data$Prediction), (plot_data$View_Count))^2
+cat("R Squared: " , R_squared)
+
+
+#Residual Plot
+hist <- hist(plot_data$View_Count - plot_data$Prediction, breaks = 100, main = "Out of Sample Residuals", xlab = "Residuals")
+abline(v = -110000, col = "red", lty = 2)
+
+
+
+
+#Video Length Scatter Plot
+p1 <- ggplot(plot_data, aes(x = (Video_Length), y = (View_Count))) +
+  geom_point(color = "black", size = 1, alpha=0.25) + 
+  geom_point(data = plot_data , aes(x = (Video_Length), y = (Prediction)), color = "orange", size = 1, alpha=0.25) + 
+  labs(
+    x = "Video Length (seconds)",
+    y = "View Count"
+  ) #+ scale_y_log10() + scale_x_log10()
+
+
+#Subscribers Scatter Plot
+p2 <- ggplot(plot_data, aes(x = Subscribers, y = View_Count)) +
+  geom_point(color = "black", size = 1, alpha=0.25) + 
+  geom_point(data = plot_data , aes(x = Subscribers, y = Prediction), color = "orange", size = 1, alpha=0.25) + 
+  labs(
+    x = "Subscribers",
+    y = "View Count"
+  ) #+ scale_y_log10() + scale_x_log10()
+
+
+#Channel Age Scatter Plot
+p3 <- ggplot(plot_data, aes(x = Channel_Age, y = View_Count)) +
+  geom_point(color = "black", size = 1, alpha=0.25) + 
+  geom_point(data = plot_data , aes(x = Channel_Age, y = Prediction), color = "orange", size = 1, alpha=0.25) + 
+  labs(
+    x = "Channel Age (Days)",
+    y = "View Count"
+  ) #+ scale_y_log10() + scale_x_log10()
+
+#Histogram
+
+#Get mode
+hist_data <- hist(plot_data$Residuals, plot = FALSE, breaks=10000)
+
+# Find the bin with the highest frequency (mode)
+mode_bin <- which.max(plot_data$Residuals)
+
+
+# Get the range of the mode bin
+mode_range <- hist_data$breaks[c(mode_bin, mode_bin + 1)]
+#mode_range = 0
+
+p4 <- ggplot(plot_data, aes(x = Residuals)) +
+  geom_histogram(binwidth = 100000, fill = "grey", color = "black", alpha = 0.7) +
+  geom_vline(xintercept = mean(plot_data$Residuals), color = "orange", linetype = "dashed") + 
+  labs( x = "Residuals", y = "Frequency") +
+  annotate("text", x = max(plot_data$Residuals), y = 600, label = paste("mean: ",as.integer(mean(plot_data$Residuals))), size = 4, color = "black",hjust = 1) +
+  annotate("text", x = max(plot_data$Residuals), y = 500, label = paste("mode: ",as.integer(mean(mode_range))), size = 4, color = "black", hjust = 1)
+
+grid.arrange( p1, p2, p3, p4, ncol = 2, bottom = textGrob(label = paste("R2:", round(R_squared, digits = 4)), gp = gpar(fontsize = 11, fontface = "bold")),                  top  = textGrob(label = "Out of Sample Performance", gp = gpar(fontsize = 11, fontface = "bold")))
+```
+
+
+
+
