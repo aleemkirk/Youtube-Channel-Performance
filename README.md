@@ -6,7 +6,7 @@ Beyond entertainment, YouTube serves as a hub for community building, learning, 
 This report delves into YouTube's content strategy and user engagement. Utilizing various statistical methods to analyze data, the study aims to reveal how video characteristics, upload frequencies, and types of content impact viewer behavior and engagement. This understanding is vital for content creators and marketers, offering essential insights for optimizing content strategy on this dynamic platform. The study's importance extends beyond academic interest, providing practical applications to enhance digital media strategies in the ever-evolving world of YouTube.
 
 # Hypothesis 
-The primary problem addressed in this project revolves around optimizing content strategy and enhancing user engagement on YouTube, a platform with over 2.70 billion users. Despite its vast user base, content creators often face challenges in effectively engaging their audience and growing their channels. To address this, the project aims to test several hypotheses using data available through the YouTube API:
+The primary problem addressed in this project revolves around optimizing content strategy and enhancing user engagement on YouTube, a platform with over 2.70 billion users. Despite its vast user base, content creators often face challenges in effectively engaging their audience and growing their channels. To address this, the project aims to test several null hypotheses using data available through the YouTube API:
 * H1: No correlation between video Length and view Count.
 * H2: No correlation between subscriber count and view count.
 * H3: No correlation between channel Age and view Count.
